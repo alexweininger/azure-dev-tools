@@ -2,7 +2,7 @@
 
 Install Azure-focused GitHub Copilot plugins that help you build Hosted Skills,
 inspect Azure resources, diagnose apps with SRE Agent, review cost health,
-browse Azure Storage, and create canvas apps.
+browse Azure Storage, operate local containers, and create canvas apps.
 
 ## Install a plugin
 
@@ -20,6 +20,7 @@ copilot plugin install azure-resources-query@azure-dev-tools
 copilot plugin install azure-cost-health-check@azure-dev-tools
 copilot plugin install azure-sre-agent@azure-dev-tools
 copilot plugin install azure-storage@azure-dev-tools
+copilot plugin install containers@azure-dev-tools
 copilot plugin install canvas-authoring@azure-dev-tools
 ```
 
@@ -28,17 +29,18 @@ gear to add `microsoft/azure-dev-tools` (marketplace ID `azure-dev-tools`), and
 select a plugin. Fully quit and reopen GitHub Copilot after installation, then
 start a fresh chat.
 
-The marketplace follows this repository's default branch. Immutable tags are
-the reproducible install points:
+The marketplace follows this repository's default branch. Choose a plugin by
+what you want to do:
 
-| Plugin | What it does | Production status |
-| --- | --- | --- |
-| [Azure Functions Hosted Skills](canvases/azure-functions-hosted-skills/) | Build and run local Hosted Skills or invoke supported functions in an existing Function App. | 0.5.5 is tagged; `azure-functions-hosted-skills-latest` points to that release. |
-| [Azure Resources Query](canvases/azure-resources-query/) | Find and inspect Azure resources with read-only Resource Graph queries. | 0.1.5 is tagged; `azure-resources-query-latest` points to that release. |
-| [Canvas Authoring](plugins/canvas-authoring/) | Add toolkit setup and starter apps to the native `create-canvas` workflow. | 0.1.1 is tagged; `canvas-authoring-latest` points to that release. Skill-only plugin, with no canvas panel. |
-| [Azure Cost Health Check](canvases/azure-cost-health-check/) | Review spend, forecasts, budgets, alerts, recommendations, and AI billing. | 0.4.5 is tagged; `azure-cost-health-check-latest` points to that release. |
-| [Azure SRE Agent](canvases/azure-sre-agent/) | Connect to your SRE Agent, diagnose failing apps, and investigate incident threads. | 0.4.1 is tagged; `azure-sre-agent-latest` points to that release. |
-| [Azure Storage](canvases/azure-storage/) | Browse blobs, inspect statistics, download files, and plan storage transfers with Copilot. | 0.3.0 is tagged; `azure-storage-latest` points to that release. |
+| Plugin | What it does |
+| --- | --- |
+| [Azure Functions Hosted Skills](canvases/azure-functions-hosted-skills/) | Build and run local Hosted Skills or invoke supported functions in an existing Function App. |
+| [Azure Resources Query](canvases/azure-resources-query/) | Find and inspect Azure resources with read-only Resource Graph queries. |
+| [Canvas Authoring](plugins/canvas-authoring/) | Add toolkit setup and starter apps to the native `create-canvas` workflow. Skill-only plugin, with no canvas panel. |
+| [Azure Cost Health Check](canvases/azure-cost-health-check/) | Review spend, forecasts, budgets, alerts, recommendations, and AI billing. |
+| [Azure SRE Agent](canvases/azure-sre-agent/) | Connect to your SRE Agent, diagnose failing apps, and investigate incident threads. |
+| [Azure Storage](canvases/azure-storage/) | Browse blobs, inspect statistics, download files, and plan storage transfers with Copilot. |
+| [Containers](canvases/containers/) | Browse and operate local Docker or Podman containers and images. |
 
 Native App marketplace installation has not been verified for every product;
 a source package or direct CLI install alone does not establish that the
@@ -71,6 +73,10 @@ native listing is live.
 **Azure Storage**
 
 > Open Azure Storage canvas.
+
+**Containers**
+
+> Open Containers canvas.
 
 Each product README lists its prerequisites, safe prompts, first-run workflow,
 version-pinned installation options, and product-specific safety behavior.
