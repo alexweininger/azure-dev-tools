@@ -56,7 +56,7 @@ function verifyRootCatalog(readme, catalog) {
   assert.match(readme, /Native App marketplace installation has not been verified for every product/);
   assert.match(readme, /a source package or direct CLI install alone does not establish that the\s+native listing is live/);
   assert.match(readme, /Each product README lists its prerequisites, safe prompts, first-run workflow,\s+version-pinned installation options, and product-specific safety behavior/);
-  assert.doesNotMatch(readme, /\b\d+\.\d+\.\d+\b|-latest\b|-v\d|\b[0-9a-f]{7,40}\b/,
+  assert.doesNotMatch(readme, /\b\d+\.\d+\.\d+\b|-latest\b|-v\d|\b[0-9a-f]{7,64}\b/,
     "release versions, tag aliases, and hashes belong in product release docs");
 }
 
@@ -110,7 +110,9 @@ test("root catalog: retains skill-only, pinned-install, and native marketplace q
     rootReadme.replace("Native App marketplace installation has not been verified for every product;", ""),
     rootReadme.replace("version-pinned installation options", "installation options"),
     `${rootReadme}\n0.4.1 is tagged; azure-sre-agent-latest points to that release.\n`,
+    `${rootReadme}\nSource revision: abcdef0\n`,
     `${rootReadme}\nRelease commit: bc8c3349df123c56eea4a957f8d63d3a4a8fd6e4\n`,
+    `${rootReadme}\nSHA-256 checksum: ${"a".repeat(64)}\n`,
   ]) {
     assert.throws(() => verifyRootCatalog(changed, manifest), assert.AssertionError);
   }
