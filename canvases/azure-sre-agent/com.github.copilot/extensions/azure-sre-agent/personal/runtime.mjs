@@ -29,6 +29,151 @@ var init_personal_consent_origin = __esm({
   }
 });
 
+// canvases/azure-sre-agent/src/personal-metadata-lease.mjs
+import { AsyncLocalStorage } from "node:async_hooks";
+import { randomUUID } from "node:crypto";
+function assertPersonalMetadataCurrent() {
+  const lease = leases.getStore();
+  if (lease && (lease.closed || lease.signal.aborted)) {
+    if (lease.confirmation) throw lease.signal.reason || failure("personal_confirmation_cancelled", "Connector confirmation was cancelled before completion. Refresh saved connections before trying again.");
+    throw failure("personal_metadata_cancelled", "Connector metadata loading was cancelled or exceeded 15 seconds. No denied operation was retried.");
+  }
+}
+function personalMetadataSignal() {
+  assertPersonalMetadataCurrent();
+  return leases.getStore()?.signal;
+}
+async function personalMetadataPhase(phase, operation) {
+  assertPersonalMetadataCurrent();
+  const lease = leases.getStore(), started = performance.now();
+  try {
+    return await operation();
+  } finally {
+    if (lease) lease.phases[phase] = (lease.phases[phase] || 0) + Math.round(performance.now() - started);
+    assertPersonalMetadataCurrent();
+  }
+}
+async function personalMetadataCli(run, args) {
+  const lease = leases.getStore();
+  if (lease) lease.cliCalls++;
+  return personalMetadataPhase("cli", () => run(args, void 0, lease ? {
+    timeout: Math.max(1, Math.ceil(lease.deadline - performance.now())),
+    signal: lease.signal
+  } : void 0));
+}
+async function personalMetadataIdentity(run, read) {
+  const lease = leases.getStore();
+  if (!lease || lease.validating) return read();
+  assertPersonalMetadataCurrent();
+  if (!lease.identities.has(run)) {
+    lease.readers.set(run, read);
+    lease.identities.set(run, read());
+  } else lease.identityReuse++;
+  return lease.identities.get(run);
+}
+function rememberPersonalMetadataToken(run, identity, token, expiresOnTimestamp) {
+  const lease = leases.getStore();
+  if (lease && !lease.validating) lease.tokens.set(run, { identity: identityKey(identity), token, expiresOnTimestamp });
+}
+function personalMetadataArmToken(run, identity) {
+  assertPersonalMetadataCurrent();
+  const cached = leases.getStore()?.tokens.get(run);
+  return cached?.identity === identityKey(identity) && cached.expiresOnTimestamp > Date.now() + 6e4 ? { token: cached.token, expiresOnTimestamp: cached.expiresOnTimestamp } : null;
+}
+async function revalidatePersonalMetadataIdentity() {
+  const lease = leases.getStore();
+  if (!lease) return;
+  assertPersonalMetadataCurrent();
+  lease.validating = true;
+  try {
+    for (const [run, read] of lease.readers) {
+      if (identityKey(await read()) !== identityKey(await lease.identities.get(run))) {
+        throw failure("personal_scope_changed", "The Azure caller changed while loading connector metadata. Choose the intended scope again.");
+      }
+    }
+    assertPersonalMetadataCurrent();
+  } finally {
+    lease.validating = false;
+  }
+}
+async function withPersonalMetadataLease(action, operation, { signal, onTiming } = {}) {
+  const confirmation = CONFIRMATION_ACTIONS.has(action);
+  if (!READ_ACTIONS.has(action) && !confirmation) return operation();
+  const timeoutController = confirmation ? new AbortController() : null;
+  const timer = confirmation ? setTimeout(() => timeoutController.abort(failure(
+    "personal_confirmation_timeout",
+    "Connector confirmation exceeded 30 seconds. Completion is unconfirmed; refresh saved connections before trying again. No automatic retry was attempted."
+  )), 3e4) : null;
+  const timeout = timeoutController?.signal || AbortSignal.timeout(15e3);
+  const lease = {
+    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+    deadline: performance.now() + (confirmation ? 3e4 : 15e3),
+    identities: /* @__PURE__ */ new Map(),
+    readers: /* @__PURE__ */ new Map(),
+    tokens: /* @__PURE__ */ new Map(),
+    phases: {},
+    cliCalls: 0,
+    identityReuse: 0,
+    validating: false,
+    confirmation
+  };
+  return leases.run(lease, async () => {
+    const started = performance.now();
+    let status = "failed", removeAbort = () => {
+    };
+    try {
+      const work = async () => {
+        const value = await operation();
+        await revalidatePersonalMetadataIdentity();
+        assertPersonalMetadataCurrent();
+        status = "complete";
+        return value;
+      };
+      if (!confirmation) return await work();
+      const cancelled = new Promise((_, reject) => {
+        const abort = () => reject(lease.signal.reason || failure("personal_confirmation_cancelled", "Connector confirmation was cancelled before completion."));
+        lease.signal.addEventListener("abort", abort, { once: true });
+        removeAbort = () => lease.signal.removeEventListener("abort", abort);
+        if (lease.signal.aborted) abort();
+      });
+      return await Promise.race([work(), cancelled]);
+    } finally {
+      if (timer) clearTimeout(timer);
+      removeAbort();
+      lease.closed = true;
+      lease.tokens.clear();
+      lease.identities.clear();
+      lease.readers.clear();
+      await onTiming?.({
+        event: "personal-metadata",
+        correlationId: randomUUID(),
+        action,
+        status,
+        durationMs: Math.round(performance.now() - started),
+        cliCalls: lease.cliCalls,
+        identityReuse: lease.identityReuse,
+        phases: lease.phases
+      });
+    }
+  });
+}
+var leases, READ_ACTIONS, CONFIRMATION_ACTIONS, identityKey, failure;
+var init_personal_metadata_lease = __esm({
+  "canvases/azure-sre-agent/src/personal-metadata-lease.mjs"() {
+    leases = new AsyncLocalStorage();
+    READ_ACTIONS = /* @__PURE__ */ new Set([
+      "get_diagnostics_context",
+      "list_personal_subscriptions",
+      "browse_personal_namespaces",
+      "browse_personal_kusto_clusters",
+      "find_personal_tools"
+    ]);
+    CONFIRMATION_ACTIONS = /* @__PURE__ */ new Set(["prepare_personal_connector", "confirm_personal_connector", "use_personal_connection"]);
+    identityKey = (value) => JSON.stringify([value.cloud, value.tenantId, value.objectId, value.accountId]);
+    failure = (code, message) => Object.assign(new Error(message), { code });
+  }
+});
+
 // canvases/azure-sre-agent/src/personal-kusto-endpoints.mjs
 function normalizePersonalKustoEndpoint(value, cloud) {
   const suffix = {
@@ -790,12 +935,7 @@ function createPersonalDiagnosticsService({ conversationId, identityProvider, cr
     } catch (error) {
       if (entry.generation === snapshot.generation) {
         if (/identity|credential|auth|sign.?in|consent|tenant|audience/i.test(String(error.code || error.name))) invalidate(entry, `Sign-in verification failed: ${safeText(error.message)}`);
-        else {
-          entry.active = false;
-          entry.targetProof = null;
-          entry.status = `Unavailable: ${safeText(error.message)}`;
-          entry.schema = { verified: false, tables: [] };
-        }
+        else invalidate(entry, `Unavailable: ${safeText(error.message)}`);
       }
       throw error;
     } finally {
@@ -1050,7 +1190,8 @@ function createPersonalDiagnosticsService({ conversationId, identityProvider, cr
       await refresh(entry, identity);
       return test(entry, identity);
     },
-    async checkForChat({ sourceId, expectedRevision }) {
+    async checkForChat({ sourceId, expectedRevision, signal }) {
+      signal?.throwIfAborted();
       const identity = await currentIdentity(), entry = ownedSource(sourceId), snapshot = stamp(entry);
       revision2(entry, expectedRevision);
       assertOwner(entry, identity);
@@ -1062,6 +1203,9 @@ function createPersonalDiagnosticsService({ conversationId, identityProvider, cr
         await invocation(entry, identity, AbortSignal.timeout(PERSONAL_LIMITS.timeoutMs));
         await currentIdentity();
         assertStamp(entry, snapshot);
+        await revalidatePersonalMetadataIdentity();
+        assertStamp(entry, snapshot);
+        signal?.throwIfAborted();
         entry.directChatConfirmed = true;
         entry.active = true;
         entry.status = "Available in this chat; target access checked on approved operations";
@@ -1075,6 +1219,9 @@ function createPersonalDiagnosticsService({ conversationId, identityProvider, cr
         return sourceView(entry);
       }
       assertStamp(entry, snapshot);
+      await revalidatePersonalMetadataIdentity();
+      assertStamp(entry, snapshot);
+      signal?.throwIfAborted();
       entry.active = true;
       entry.status = "Available in this chat; target access checked on approved operations";
       return sourceView(entry);
@@ -1205,6 +1352,7 @@ function createPersonalDiagnosticsService({ conversationId, identityProvider, cr
 var clone, opaque, ORIGIN_FIELDS, TABLE_NAME;
 var init_personal_diagnostics = __esm({
   "canvases/azure-sre-agent/src/personal-diagnostics.mjs"() {
+    init_personal_metadata_lease();
     init_personal_source_catalog();
     clone = (value) => value === void 0 ? void 0 : structuredClone(value);
     opaque = (kind) => `${kind}_${randomUUID4()}`;
@@ -1330,7 +1478,8 @@ import {
   m365Error,
   sameM365Identity,
   assertM365CallerAccess,
-  m365ProviderAccount
+  m365ProviderAccount,
+  m365TeamsAuthor
 } from "./m365-transport.mjs";
 function text(value, limit, name) {
   if (typeof value !== "string" || !value.trim() || value.length > limit || /\u0000/.test(value)) {
@@ -1506,8 +1655,11 @@ function createPersonalM365Service(options = {}) {
     if (!STATUS.has(inspection.status) || inspection.status === "ready" && (inspection.connectionStatus !== "Connected" || inspection.healthy !== true || !inspection.configurationRevision)) {
       throw m365Error("connection_unavailable", "Readiness requires a Connected, healthy provider connection and current source access.");
     }
-    if (inspection.status === "ready" && source.kind === "teams" && (inspection.team?.id?.toLowerCase() !== source.target.groupId || inspection.channel?.id !== source.target.channelId || inspection.author?.poster !== "Flow bot" || inspection.author?.displayName !== "Flow bot")) {
-      throw m365Error("source_access_denied", "The channel and actual posting identity were not resolved.");
+    if (inspection.status === "ready" && source.kind === "teams" && (inspection.team?.id?.toLowerCase() !== source.target.groupId || inspection.channel?.id !== source.target.channelId)) {
+      throw m365Error("source_access_denied", "The selected team and channel were not resolved.");
+    }
+    if (inspection.status === "ready" && source.kind === "teams" && (inspection.author?.kind !== "user" || inspection.author?.poster !== "User")) {
+      throw m365Error("posting_identity_unavailable", RECOVERY.posting_identity_unavailable);
     }
     if (inspection.status === "ready" && source.kind === "inbox" && inspection.mailbox?.folder !== "Inbox") {
       throw m365Error("source_access_denied", "The selected connection's Inbox could not be accessed.");
@@ -1539,7 +1691,7 @@ function createPersonalM365Service(options = {}) {
         displayName: clip(inspection.channel.displayName, 240),
         membershipType: clip(inspection.channel.membershipType, 20)
       } : null,
-      author: inspection.author ? { kind: "bot", displayName: "Flow bot", poster: "Flow bot" } : null
+      author: inspection.author ? m365TeamsAuthor(inspection.providerAccount ?? inspection.provider) : null
     };
     const fingerprint3 = digest(next);
     if (source.fingerprint && source.fingerprint !== fingerprint3) {
@@ -1626,7 +1778,7 @@ function createPersonalM365Service(options = {}) {
       ready: draft.ready && source?.status === "ready" && source.revision === draft.sourceRevision && draft.delivery === "draft",
       delivery: draft.delivery,
       recovery: draft.recovery ?? null,
-      ...draft.messageId ? { messageId: draft.messageId, messageLink: draft.messageLink } : {}
+      ...draft.messageId ? { messageId: draft.messageId, messageLink: draft.messageLink, senderConfirmed: false } : {}
     };
   }
   function getDraftInternal(draftId) {
@@ -1762,7 +1914,8 @@ function createPersonalM365Service(options = {}) {
         throw error;
       }
     },
-    async checkForChat({ sourceId, expectedRevision }) {
+    async checkForChat({ sourceId, expectedRevision, signal }) {
+      signal?.throwIfAborted();
       const source = owned(sourceId, void 0, true), captured = lease(source);
       if (expectedRevision !== captured.revision) throw m365Error("source_changed", "This source changed. Confirm the current connector again.");
       if (source.kind === "teams" && !source.target) throw m365Error("source_target_required", "Choose the Teams channel for this connection.");
@@ -1772,6 +1925,7 @@ function createPersonalM365Service(options = {}) {
       await permission("check_personal_connection", source, "Check current caller invocation access and provider connection health for this chat. Do not read content or start consent.");
       await account(source);
       assertLease(source, captured, resumeStopped);
+      signal?.throwIfAborted();
       if (resumeStopped) {
         source.status = "not_tested";
         source.generation++;
@@ -1783,6 +1937,9 @@ function createPersonalM365Service(options = {}) {
         const proof = await transport.checkAccess(await args(source));
         await account(source);
         assertLease(source, checking);
+        await revalidatePersonalMetadataIdentity();
+        assertLease(source, checking);
+        signal?.throwIfAborted();
         applyAccess(source, proof);
         source.chatConfirmed = true;
         if (proof.status === "ready" && proof.healthy === true && proof.connectionStatus === "Connected") {
@@ -1791,6 +1948,7 @@ function createPersonalM365Service(options = {}) {
         }
         return sourceView(source);
       } catch (error) {
+        if (signal?.aborted) throw error;
         if (["source_changed", "wrong_account"].includes(error.code)) throw error;
         assertLease(source, checking);
         source.status = safeStatus(error);
@@ -2141,7 +2299,7 @@ function createPersonalM365Service(options = {}) {
         delivery: "draft",
         recovery: replyTo ? "Reply payload metadata needs provider qualification. Choose a new channel post instead." : null,
         payload: {
-          poster: "Flow bot",
+          poster: "User",
           location: "Channel",
           input: { recipient: { groupId: source.target.groupId, channelId: source.target.channelId }, messageBody }
         }
@@ -2172,8 +2330,9 @@ function createPersonalM365Service(options = {}) {
         await permission(
           "publish_channel_update",
           source,
-          `Send the approved update to ${draft.team.displayName} / ${draft.channel.displayName} as Flow bot.
-Revision: ${draft.revision}
+          `Send the approved update to ${draft.team.displayName} / ${draft.channel.displayName} as ${draft.author.displayName}.
+` + (draft.author.accountId ? `Teams connection account: ${draft.author.accountId}
+` : "") + `Revision: ${draft.revision}
 Mentions: ${recipients}
 
 Body:
@@ -2183,6 +2342,7 @@ Evidence:
 ${draft.evidence.summary}` : ""),
           true
         );
+        await requireReady(source);
         assertLease(source, captured);
         await account(source);
         const callArgs = await args(source, true);
@@ -2192,6 +2352,7 @@ ${draft.evidence.summary}` : ""),
         const result = await transport.publishChannelUpdate({
           ...callArgs,
           payload: clone2(draft.payload),
+          expectedAuthor: clone2(draft.author),
           replyTo: draft.replyTo,
           draftId,
           revision: draft.revision
@@ -2211,7 +2372,7 @@ ${draft.evidence.summary}` : ""),
         draft.ready = false;
         const unknown = dispatched && error.deliveryStarted !== false;
         draft.delivery = unknown ? "delivery_unknown" : "preview_required";
-        draft.recovery = unknown ? "Delivery unknown. Inspect the channel before creating another post; no automatic retry." : "Reconnect or correct source access, then prepare and approve a fresh preview.";
+        draft.recovery = unknown ? "Delivery unknown. Inspect the channel before creating another post; no automatic retry." : error.code === "posting_identity_unavailable" ? RECOVERY.posting_identity_unavailable : "Reconnect or correct source access, then prepare and approve a fresh preview.";
         return draftView(draft);
       }
     },
@@ -2231,6 +2392,7 @@ ${draft.evidence.summary}` : ""),
 var STATUS, RECOVERY;
 var init_personal_m365 = __esm({
   "canvases/azure-sre-agent/src/personal-m365.mjs"() {
+    init_personal_metadata_lease();
     init_teams_target();
     init_personal_consent_origin();
     STATUS = /* @__PURE__ */ new Set([
@@ -2249,6 +2411,7 @@ var init_personal_m365 = __esm({
       "connection_unavailable",
       "consent_unavailable",
       "unsupported_channel",
+      "posting_identity_unavailable",
       "stopped",
       "unavailable",
       "not_tested",
@@ -2271,6 +2434,7 @@ var init_personal_m365 = __esm({
       connection_unavailable: "Choose another connection",
       consent_unavailable: "Use the supported provider consent flow",
       unsupported_channel: "Choose a supported channel",
+      posting_identity_unavailable: "Choose a connection that supports signed-in Teams user posting. No bot fallback is available.",
       stopped: "Connect explicitly",
       unavailable: "Retry after checking the service",
       not_tested: "Test this connection before Use",
@@ -3205,112 +3369,8 @@ function execFileText(file, args, options = {}) {
 
 // canvases/azure-sre-agent/src/personal-connection-lifecycle.mjs
 init_personal_consent_origin();
+init_personal_metadata_lease();
 import { createHash as createHash2, randomUUID as randomUUID2 } from "node:crypto";
-
-// canvases/azure-sre-agent/src/personal-metadata-lease.mjs
-import { AsyncLocalStorage } from "node:async_hooks";
-import { randomUUID } from "node:crypto";
-var leases = new AsyncLocalStorage();
-var READ_ACTIONS = /* @__PURE__ */ new Set([
-  "get_diagnostics_context",
-  "list_personal_subscriptions",
-  "browse_personal_namespaces",
-  "browse_personal_kusto_clusters",
-  "find_personal_tools"
-]);
-var identityKey = (value) => JSON.stringify([value.cloud, value.tenantId, value.objectId, value.accountId]);
-var failure = (code, message) => Object.assign(new Error(message), { code });
-function assertPersonalMetadataCurrent() {
-  const lease = leases.getStore();
-  if (lease && (lease.closed || lease.signal.aborted)) throw failure("personal_metadata_cancelled", "Connector metadata loading was cancelled or exceeded 15 seconds. No denied operation was retried.");
-}
-function personalMetadataSignal() {
-  assertPersonalMetadataCurrent();
-  return leases.getStore()?.signal;
-}
-async function personalMetadataPhase(phase, operation) {
-  assertPersonalMetadataCurrent();
-  const lease = leases.getStore(), started = performance.now();
-  try {
-    return await operation();
-  } finally {
-    if (lease) lease.phases[phase] = (lease.phases[phase] || 0) + Math.round(performance.now() - started);
-    assertPersonalMetadataCurrent();
-  }
-}
-async function personalMetadataCli(run, args) {
-  const lease = leases.getStore();
-  if (lease) lease.cliCalls++;
-  return personalMetadataPhase("cli", () => run(args, void 0, lease ? {
-    timeout: Math.max(1, Math.ceil(lease.deadline - performance.now())),
-    signal: lease.signal
-  } : void 0));
-}
-async function personalMetadataIdentity(run, read) {
-  const lease = leases.getStore();
-  if (!lease || lease.validating) return read();
-  assertPersonalMetadataCurrent();
-  if (!lease.identities.has(run)) {
-    lease.readers.set(run, read);
-    lease.identities.set(run, read());
-  } else lease.identityReuse++;
-  return lease.identities.get(run);
-}
-function rememberPersonalMetadataToken(run, identity, token, expiresOnTimestamp) {
-  const lease = leases.getStore();
-  if (lease && !lease.validating) lease.tokens.set(run, { identity: identityKey(identity), token, expiresOnTimestamp });
-}
-function personalMetadataArmToken(run, identity) {
-  assertPersonalMetadataCurrent();
-  const cached = leases.getStore()?.tokens.get(run);
-  return cached?.identity === identityKey(identity) && cached.expiresOnTimestamp > Date.now() + 6e4 ? { token: cached.token, expiresOnTimestamp: cached.expiresOnTimestamp } : null;
-}
-async function withPersonalMetadataLease(action, operation, { signal, onTiming } = {}) {
-  if (!READ_ACTIONS.has(action)) return operation();
-  const timeout = AbortSignal.timeout(15e3);
-  const lease = {
-    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-    deadline: performance.now() + 15e3,
-    identities: /* @__PURE__ */ new Map(),
-    readers: /* @__PURE__ */ new Map(),
-    tokens: /* @__PURE__ */ new Map(),
-    phases: {},
-    cliCalls: 0,
-    identityReuse: 0,
-    validating: false
-  };
-  return leases.run(lease, async () => {
-    const started = performance.now();
-    let status = "failed";
-    try {
-      const value = await operation();
-      lease.validating = true;
-      for (const [run, read] of lease.readers) {
-        if (identityKey(await read()) !== identityKey(await lease.identities.get(run))) {
-          throw failure("personal_scope_changed", "The Azure caller changed while loading connector metadata. Choose the intended scope again.");
-        }
-      }
-      assertPersonalMetadataCurrent();
-      status = "complete";
-      return value;
-    } finally {
-      lease.closed = true;
-      lease.tokens.clear();
-      lease.identities.clear();
-      lease.readers.clear();
-      await onTiming?.({
-        event: "personal-metadata",
-        correlationId: randomUUID(),
-        action,
-        status,
-        durationMs: Math.round(performance.now() - started),
-        cliCalls: lease.cliCalls,
-        identityReuse: lease.identityReuse,
-        phases: lease.phases
-      });
-    }
-  });
-}
 
 // canvases/azure-sre-agent/src/personal-network-errors.mjs
 var reasons = {
@@ -3827,6 +3887,7 @@ function createSreAgentDiscovery() {
 var discoverSreAgents = createSreAgentDiscovery();
 
 // canvases/azure-sre-agent/src/personal-resource-picker.mjs
+init_personal_metadata_lease();
 var GUID4 = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
 var lower2 = (value) => String(value || "").toLowerCase();
 var fingerprint2 = (identity) => JSON.stringify([identity.tenantId, identity.cloud, identity.objectId, identity.accountId].map(lower2));
@@ -4060,12 +4121,15 @@ var identityKey3 = (identity) => JSON.stringify(["tenantId", "cloud", "objectId"
 function createPersonalConnectorRegistration({ definitions, diagnostics, m365, identityProvider }) {
   const attempts = /* @__PURE__ */ new Map();
   const registration = {
-    async confirm(input) {
+    async confirm(input, { signal } = {}) {
+      signal?.throwIfAborted();
       const added = await registration.add(input, { existingOnly: true });
+      signal?.throwIfAborted();
       const service = ["inbox", "teams"].includes(added.kind) ? m365 : diagnostics;
       const personalSource = await service.checkForChat({
         sourceId: added.personalSource.sourceId || added.personalSource.id,
-        expectedRevision: added.personalSource.revision
+        expectedRevision: added.personalSource.revision,
+        signal
       });
       attempts.get(input.draftId).source = personalSource;
       return {
@@ -4148,6 +4212,7 @@ function createPersonalConnectorRegistration({ definitions, diagnostics, m365, i
 }
 
 // canvases/azure-sre-agent/src/personal-runtime.mjs
+init_personal_metadata_lease();
 import { createPersonalDiagnosticsTransport as createPersonalDiagnosticsTransport2 } from "./diagnostics-transport.mjs";
 import { createPersonalM365Transport as createPersonalM365Transport2 } from "./m365-transport.mjs";
 var personalUiInvocation = new AsyncLocalStorage2();

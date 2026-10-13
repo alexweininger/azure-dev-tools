@@ -1981,6 +1981,17 @@ function m365ProviderAccount(account) {
     identityVerified: false
   };
 }
+function m365TeamsAuthor(providerAccount) {
+  const account = m365ProviderAccount(providerAccount);
+  return {
+    kind: "user",
+    poster: "User",
+    displayName: account.displayName === "uses account chosen during consent" ? "Teams user (account chosen during consent)" : `${account.displayName} (Teams connection user)`,
+    accountId: account.accountId,
+    selection: account.selection,
+    identityVerified: false
+  };
+}
 function connectionState(proof) {
   if (CONSENT_STATES.has(proof.consentStatus) && proof.consentStatus !== "ready") return proof.consentStatus;
   if (proof.authenticated === false) return "consent_required";
@@ -2147,7 +2158,7 @@ function createPersonalM365Transport({ loadConnection, sdk = { Office365Client, 
       throw m365Error("unsupported_channel", "This channel's identity and publishing contract has not been qualified.");
     }
     if (args.identity.cloud !== "AzureCloud") {
-      throw m365Error("unsupported_channel", "Flow bot posting is supported only in commercial tenants.");
+      throw m365Error("unsupported_channel", "This canvas has qualified Teams posting only for commercial connections.");
     }
     if (team.isArchived) throw m365Error("source_access_denied", "This team is archived.");
     return {
@@ -2155,7 +2166,7 @@ function createPersonalM365Transport({ loadConnection, sdk = { Office365Client, 
       sourceAccess: true,
       team: { id: team.id, displayName: team.displayName },
       channel: { id: channel.id, displayName: channel.displayName, membershipType },
-      author: { kind: "bot", displayName: "Flow bot", poster: "Flow bot" }
+      author: m365TeamsAuthor(proof.providerAccount)
     };
   }
   async function ready(args) {
@@ -2235,22 +2246,38 @@ function createPersonalM365Transport({ loadConnection, sdk = { Office365Client, 
       let client;
       const payload = args.payload;
       try {
-        ({ client } = await ready(args));
-        if (args.identity.cloud !== "AzureCloud" || payload.poster !== "Flow bot" || payload.location !== "Channel" || payload.input?.recipient?.groupId !== args.source.target.groupId || payload.input?.recipient?.channelId !== args.source.target.channelId || args.replyTo) {
-          throw m365Error("publish_contract_changed", "Only qualified new commercial channel posts are supported.");
+        const opened = await ready(args);
+        client = opened.client;
+        if (payload?.poster !== "User") {
+          throw m365Error("posting_identity_unavailable", "Only signed-in Teams user posting is supported. No bot fallback is available.");
+        }
+        const author = m365TeamsAuthor(opened.proof.providerAccount);
+        if (!["kind", "poster", "displayName", "accountId", "selection", "identityVerified"].every((key) => args.expectedAuthor?.[key] === author[key])) {
+          throw m365Error("source_changed", "The Teams connection sender changed. Prepare and approve a fresh preview.");
+        }
+        if (args.identity.cloud !== "AzureCloud" || payload.location !== "Channel" || payload.input?.recipient?.groupId !== args.source.target.groupId || payload.input?.recipient?.channelId !== args.source.target.channelId || args.replyTo) {
+          throw m365Error("publish_contract_changed", "Only reviewed new User posts to qualified channels are supported.");
         }
       } catch (error) {
         error.deliveryStarted = false;
         throw error;
       }
-      const result = await client.postMessageToConversationAsync(payload.input, payload.poster, payload.location);
+      let result;
+      try {
+        result = await client.postMessageToConversationAsync(payload.input, payload.poster, payload.location);
+      } catch (error) {
+        if (![405, 501].includes(error.statusCode)) throw error;
+        const unsupported = m365Error("posting_identity_unavailable", "This connection does not support signed-in Teams user posting. No bot fallback is available.");
+        unsupported.deliveryStarted = false;
+        throw unsupported;
+      }
       if (typeof result?.id !== "string" || !result.id || result.id.length > 300 || result.conversationId && result.conversationId !== args.source.target.channelId) {
         throw m365Error("delivery_unknown", "The provider did not confirm delivery to the selected channel. Do not retry blindly.");
       }
       return { messageId: result.id, messageLink: safeTeamsMessageLink(result.messageLink, {
         ...args.source.target,
         messageId: result.id
-      }) };
+      }), senderConfirmed: false };
     }
   });
 }
@@ -2261,5 +2288,6 @@ export {
   createPersonalM365Transport,
   m365Error,
   m365ProviderAccount,
+  m365TeamsAuthor,
   sameM365Identity
 };
