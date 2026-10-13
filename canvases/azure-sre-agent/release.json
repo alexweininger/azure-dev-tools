@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "format": "plugin",
   "name": "azure-sre-agent",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "mutableDocumentation": true,
   "publicationRepository": "microsoft/azure-dev-tools",
   "plugin": {
@@ -66,8 +66,8 @@
   },
   "build": {
     "esbuild": "0.25.12",
-    "lockSha256": "9d7df955178a80acaeb96eaa06816458fdf721443811fcd1c890d6ca8e9387c3",
-    "inputSha256": "154010899e2f9bc43db58f4c6e8a4c845f587f748d0d78bdb05c016859a2a42b"
+    "lockSha256": "4b266aa943330e35c9660aad785b6da7e2cf1c24d66bcde04ca5e185d37b557e",
+    "inputSha256": "aeca27691c4da05a6e6d527972ced6e5deb3464c3a8f50f4a9ff4ec682372546"
   },
   "dependencies": [
     {
@@ -139,6 +139,11 @@
       "name": "@azure/msal-node",
       "version": "6.0.1",
       "license": "MIT"
+    },
+    {
+      "name": "@cloud-foundation/canvas-bridge",
+      "version": "0.1.0",
+      "license": null
     },
     {
       "name": "@cloud-foundation/sre-agent-core",
