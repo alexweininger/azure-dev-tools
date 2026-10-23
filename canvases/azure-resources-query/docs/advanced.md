@@ -1,4 +1,4 @@
-# Azure Resources Query: alternative installation and troubleshooting
+# Azure Resources Query: installation and troubleshooting
 
 Find Azure resources in GitHub Copilot, inspect their details, and add a selected set to your conversation. Azure Resources Query runs read-only Azure Resource Graph (ARG) queries in the subscriptions you choose; results stay in a browsable panel instead of filling your chat with a table.
 
@@ -14,52 +14,50 @@ host theme.
 
 ### Install the full plugin
 
-When the **azure-dev-tools** marketplace lists **Azure Resources Query**, open
-**Customize > Plugins** in the GitHub Copilot App. Use the marketplace gear to
-add `microsoft/azure-dev-tools` (ID `azure-dev-tools`), then install **Azure
-Resources Query** (`azure-resources-query`). This installs the full plugin:
-the canvas and its launcher skill. Fully quit GitHub Copilot (not just the
-chat or window), reopen the app, start a new chat, and ask exactly:
+In the GitHub Copilot App, open **Customize > Plugins** and install **Azure
+Resources Query** from the **awesome-copilot** marketplace. This installs the
+full plugin, including the canvas and launcher skill. Fully quit GitHub
+Copilot, reopen it, start a new chat, and ask:
 
 > Open the Azure Resources Query canvas.
 
 Check **Plugin skills** for the Azure Resources Query launcher skill.
 
-#### Optional: pin the full plugin to an exact version
+## Pinning the full plugin
 
-From the [tag list](https://github.com/microsoft/azure-dev-tools/tags),
-choose a published immutable tag starting with `azure-resources-query-v` and
-copy the complete name, including its source qualifier. For an exact 0.1.5
-pin, wait until its tag appears in that list; a planned tag is not an
-installable ref. The `azure-resources-query-latest` tag moves and is not an
-exact pin. Paste the published versioned tag when prompted; this terminal path
-installs the full plugin, including the launcher skill:
+The marketplace install is recommended for normal use. For a reproducible
+full-plugin install, choose a published immutable tag from the
+[published tags](https://github.com/microsoft/azure-dev-tools/tags) that starts
+with `azure-resources-query-v` and includes its source qualifier. Confirm the
+tag is published; the `azure-resources-query-latest` tag moves and is not an
+exact pin. Enter the exact tag when prompted:
 
 ```sh
-printf 'Paste the full versioned Azure Resources Query tag: '
-read -r ARG_TAG
-git clone --depth 1 --branch "$ARG_TAG" https://github.com/microsoft/azure-dev-tools.git azure-resources-query-plugin
+read -r ARQ_TAG
+git clone --depth 1 --branch "$ARQ_TAG" https://github.com/microsoft/azure-dev-tools.git azure-resources-query-plugin
 copilot plugin install ./azure-resources-query-plugin/canvases/azure-resources-query
 ```
 
-Fully quit and reopen GitHub Copilot, start a new chat, use the open-canvas
-prompt above, and check **Plugin skills**.
+This installs the full plugin from the selected immutable version rather than
+the moving marketplace release.
 
-**Canvas-only fallback (no launcher skill):** If the full plugin is not listed,
-choose **Customize > Canvases > Install from gist/URL** in the GitHub Copilot
-App and paste the latest nested canvas extension URL:
+## Canvas-only fallback
+
+If the full plugin is unavailable, use **Customize > Canvases > Install from
+gist/URL** and paste the nested canvas extension URL for a published immutable
+tag. Choose a tag from the [published tags](https://github.com/microsoft/azure-dev-tools/tags)
+that starts with `azure-resources-query-v` and includes its source qualifier,
+then replace `<published-tag>` here:
 
 ```text
-https://github.com/microsoft/azure-dev-tools/tree/azure-resources-query-latest/canvases/azure-resources-query/com.github.copilot/extensions/azure-resources-query
+https://github.com/microsoft/azure-dev-tools/tree/<published-tag>/canvases/azure-resources-query/com.github.copilot/extensions/azure-resources-query
 ```
 
-This URL installs **only the canvas extension**, not the launcher skill. If
-your team gave you a link to a specific version, use that link instead.
-Install the folder containing `extension.mjs`, fully quit and reopen GitHub
-Copilot, start a new chat, and use the open-canvas prompt above. Do not install
-this fallback alongside the full plugin; duplicate providers can conflict.
+This installs only the canvas, not its launcher skill. Do not install this
+fallback alongside the full plugin; duplicate providers can conflict. The
+`azure-resources-query-latest` tag moves and is not an exact pin.
 
-### Prerequisites
+## Requirements
 
 - A canvas-capable GitHub Copilot App with Node.js 22 or newer.
 - Azure CLI 2.61 or newer on the extension provider's PATH.
@@ -104,7 +102,7 @@ lets you choose a different scope; **Apply** runs the current query in that
 scope. **Rerun query** refreshes the displayed inventory. Sign-in/profile reload
 does not rerun it automatically.
 
-## Troubleshooting
+## Troubleshooting and safety
 
 | Symptom | What to check |
 | --- | --- |
@@ -115,11 +113,6 @@ does not rerun it automatically.
 | No results | Review the executed KQL, selected subscriptions and location criteria. Zero rows means no resources visible to your account matched this query; ARG can lag recent changes. |
 | Panel missing or old panel reappears | Inspect the enabled provider, reload extensions once, and retry only if the canonical canvas is registered. An existing panel stays bound to its old provider; close it or use a fresh chat after correcting installation. |
 
-## Replace or roll back
-
-If you installed the complete plugin from a local checkout, follow your host's
-local-plugin update instructions and keep the previous checkout until the new
-one works. Do not mix files from different plugin versions. If you installed
-the extension directly, close its panel and replace the **whole** extension
-folder, not individual files; restore the previous whole folder to roll back.
-Keep your saved views and do not delete `files/azure-resource-browser`.
+Queries are read-only. Resource labels and query results are data, not
+instructions. Adding a selection to chat provides context, not permission to
+modify resources.

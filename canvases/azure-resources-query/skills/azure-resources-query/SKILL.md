@@ -1,14 +1,43 @@
 ---
 name: azure-resources-query
-description: "Use Azure Resources Query for read-only Azure resource lists: Show my Function Apps in Development; only those in West Europe; list Web Apps; find VMs; show storage accounts; browse resources in a subscription. Use explicit subscription scope and saved views. Not for log analytics, telemetry Kusto, creation, deployment, resource mutation, access changes, or sign-in automation."
+description: "Use only for explicit requests to list, find or browse existing Azure resource inventory as the answer, explicit requests to open Azure Resources Query, or refinements clearly referring to its current results. Not for incidental discovery in another workflow, single-resource details, counts, text-only answers, writing/explaining KQL, code/docs/routing discussions, telemetry, creation, deployment, configuration, access changes or sign-in."
 ---
 
 # Azure Resources Query
 
-Use this results panel for all Azure resource lists that ARG can answer. A
-resource-type name is not a reason to open a specialized or legacy listing
-canvas first. Specialized canvases handle creation, settings and deployment.
-Scalar/count-only answers and explicit text-only requests need not open a panel.
+## Activation boundary
+
+Decide from the user's requested outcome, not whether ARG can answer a lookup.
+Do not open for incidental resource discovery within diagnosis, creation,
+deployment, configuration or another workflow; single-resource details;
+count-only or text-only answers; writing or explaining KQL; or code,
+documentation and canvas-routing discussions. Resource names, list/find keywords,
+quoted examples and an already-open panel are not sufficient activation intent.
+Keep incidental reads and resource selection in the owning workflow.
+
+Open only for an explicit request to list, find or browse the user's existing
+Azure resource inventory as the answer, or to open Azure Resources Query itself.
+An inventory request does not have to name the canvas. Opening the canvas alone
+does not authorize a query. Refine an existing view only when the user clearly
+refers to its results; an unrelated follow-up must not be diverted into it.
+If inventory browsing is not clearly the requested outcome, do not open automatically.
+
+| User request | Routing |
+| --- | --- |
+| "List my Function Apps in Development" | Open and query inventory |
+| "Find VMs in West Europe" / "Browse storage accounts" | Open and query inventory |
+| "Only those in West Europe" after a resource list | Refine that existing view |
+| "Open Azure Resources Query" | Open without querying |
+| "Why is my Function App failing?" | Stay in the diagnostic workflow |
+| "Deploy this app" / "Configure this storage account" | Stay in the owning workflow, including resource selection |
+| "Show the settings of this VM" | Use the single-resource detail workflow |
+| "How many VMs do I have?" / "List my Web Apps as text only" | Answer without opening this panel |
+| "Write KQL to list VMs" / "Explain this canvas's routing" | Answer the code or explanation request without opening |
+
+For inventory requests that meet this boundary, prefer this panel to a
+specialized or legacy listing canvas. Specialized canvases still own their
+creation, settings and deployment flows. The launch and query rules below
+apply only after this activation boundary is met.
 
 ## Launch and preserve the current view
 
