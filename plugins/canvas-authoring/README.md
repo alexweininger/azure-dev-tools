@@ -1,9 +1,53 @@
 # Canvas authoring plugin
 
-Create a canvas app with the Microsoft Canvas Toolkit. This skill-only
-companion adds toolkit setup and a counter or read-only Azure resource-group
-starter to the host's native `create-canvas` workflow. Installing it does not
-open a canvas.
+Create a canvas app with the Microsoft Canvas Toolkit. This **skill-only
+companion** gives the host's native `create-canvas` workflow toolkit setup
+and a counter or read-only Azure resource-group starter; installing it does
+not open a canvas.
+
+## Install
+
+If your GitHub Copilot host shows the **awesome-copilot** marketplace, open
+**Customize → Plugins** and install **canvas-authoring**. Its
+[listed 0.1.1 package](https://github.com/microsoft/azure-dev-tools/tree/a6d394bbaa6fb1dc0151257a85cbac0de772b138/plugins/canvas-authoring)
+is a skill-only companion, not a canvas extension. If the marketplace is
+missing, add it first:
+
+```sh
+copilot plugin marketplace add github/awesome-copilot
+copilot plugin install canvas-authoring@awesome-copilot
+```
+
+For an approved local export, run:
+
+```sh
+copilot --plugin-dir "<export-directory>/plugins/canvas-authoring"
+```
+
+Install the exported plugin, not this source folder.
+
+You need a canvas-capable Copilot host with the native `create-canvas` skill,
+Node.js 22+, and an available toolkit package; the Azure starter also needs
+Azure CLI and subscription read access. See [requirements](#requirements).
+
+## Try it
+
+Ask your agent to **Build a read-only Azure canvas that lists resource
+groups. Use the native create-canvas skill and the create-canvas-app
+companion's Azure starter.** Choose a compatible toolkit package and project
+location when prompted. For a non-Azure example, ask for the counter starter.
+
+## What you can do
+
+- Generate a native canvas scaffold with a working counter starter.
+- Start a read-only Azure resource-group viewer with explicit subscription choice.
+- Build and smoke-test the generated app before installing its complete output.
+
+## Prompts to try
+
+> Use the native create-canvas skill and the create-canvas-app companion to build a counter canvas.
+
+> Build a read-only Azure canvas that lists resource groups. Use the native create-canvas skill and the create-canvas-app companion's Azure starter.
 
 ## Requirements
 
@@ -11,73 +55,22 @@ open a canvas.
   The plugin does not replace or install that host skill.
 - Node.js 22+ (24 recommended) and npm.
 - The exact `@microsoft/canvas-toolkit@0.1.0-preview.2` release exporting
-  `@microsoft/canvas-toolkit/build`, or an approved local
+  `@microsoft/canvas-toolkit/build`, once published, or an approved local
   `.tgz` containing that API. Do not treat a missing `/build` export as success.
 - For live Azure reads: Azure CLI 2.61+ and permission to read the subscription.
 
-## Install
+## Usage data
 
-Version 0.1.1 is published at the immutable
-`canvas-authoring-v0-1-1-8af10f8` tag, and `canvas-authoring-latest` points to
-that release. Add the production marketplace and install the plugin:
-
-```sh
-copilot plugin marketplace add microsoft/azure-dev-tools
-copilot plugin install canvas-authoring@azure-dev-tools
-```
-
-To install the exact tagged package:
-
-```sh
-git clone --depth 1 --branch canvas-authoring-v0-1-1-8af10f8 https://github.com/microsoft/azure-dev-tools.git canvas-authoring-plugin
-copilot --plugin-dir "./canvas-authoring-plugin/plugins/canvas-authoring"
-```
-
-To try another approved local export:
-
-```sh
-copilot --plugin-dir "<export-directory>/plugins/canvas-authoring"
-```
-
-Use the **exported plugin**, not the source folder `build/canvas-authoring/`.
-This page describes the installed plugin; its bundled documentation links
-resolve after export. Installing it adds a skill, not a running canvas app.
+The plugin counts how often its `create-canvas-app` skill is invoked. Each
+count records the skill name, how it was invoked, the plugin name and version,
+and a timestamp. Usage telemetry may include a pseudonymous account identifier
+to understand usage over time; it is retained for up to 30 days. The plugin
+does not send prompts, project files or source code.
 
 ## Create an app
 
-Ask your agent:
-
-```text
-Build a read-only Azure canvas that lists resource groups.
-Use the native create-canvas skill and the create-canvas-app companion's
-Azure starter. Help me choose a compatible toolkit version.
-```
-
 The agent creates the native scaffold, generates the source app, and connects
 the copied host entry. You choose the project location and toolkit package.
-For a non-Azure example, ask for the counter starter.
-
-## What you can do
-
-- Generate a native canvas scaffold with a working counter starter.
-- Start a read-only Azure resource-group viewer with explicit subscription
-  choice.
-- Build and smoke-test the generated app before installing its complete
-  output.
-
-## Prompts to try
-
-```text
-Use the native create-canvas skill and the create-canvas-app companion to build a counter canvas.
-```
-
-```text
-Build a read-only Azure canvas that lists resource groups. Use the native create-canvas skill and the create-canvas-app companion's Azure starter.
-```
-
-```text
-Use the create-canvas-app companion to help me choose a compatible toolkit version before creating files.
-```
 
 Setup accepts one exact npm version or one local tarball. It does not install
 dependencies or contact Azure, and it refuses existing output directories

@@ -270,6 +270,52 @@ fields. The public service may add a server-derived GitHub user key; no raw ID
 is persisted and lower-level/custom collectors add no identity unless their
 caller explicitly configures an identity resolver.
 
+### Skill use and workflow completion
+
+The shared skill API is independent of any canvas product. A product defines a
+`SkillUsageContract`: plugin name, host, versions, skill names, and reviewed
+workflow-to-canvas mappings. Register the same contract in the gateway before
+collection. Other canvases do not need to change.
+
+```js
+import { createPublicSkillUsageMetrics } from "@microsoft/canvas-toolkit/telemetry";
+import { createSkillUsageObserver } from "@microsoft/canvas-toolkit/skill-telemetry";
+
+const metrics = createPublicSkillUsageMetrics({
+    contract: PRODUCT_SKILL_USAGE_CONTRACT, pluginVersion: PRODUCT_VERSION,
+});
+const observer = createSkillUsageObserver({
+    contract: PRODUCT_SKILL_USAGE_CONTRACT, metrics,
+    // Optional exact local SKILL.md paths for development-mode reads.
+    skillPaths: registeredSkillPaths,
+});
+const unsubscribe = session.on(event => observer.observe(event));
+
+// Use the controller's local run key. It never leaves the observer.
+observer.beginWorkflow(localRunKey, "registered_action");
+// Call only after the controller accepts the terminal report.
+observer.completeWorkflow(localRunKey, "succeeded");
+// At shutdown: unsubscribe(); observer.dispose(); await metrics.close();
+```
+
+`skill_invoked` records live `skill.invoked` events or successful reads of exact
+registered skill files. Catalog loading and prompt text do not count. Do not
+replay session history. `skill_workflow_completed` records the outcome, duration,
+and skills observed during one active workflow. Empty skill lists are valid.
+Context loads, subagent events, and events with ambiguous workflow ownership
+have no workflow association. A fresh UUID joins these two events; it is not a
+session, device, or controller ID. Paths, event content, and local run keys stay
+local. Association does not prove that a skill caused a better result.
+
+Skill collection uses its own bounded queue and the existing delivery limits.
+An older gateway can reject skill batches without dropping legacy canvas
+batches. Neither collector waits in the action path. Failure produces a fixed
+diagnostic, not a panel error or retry loop. Data stays in process memory; lost
+events are not restored. Use `createSkillUsageMetrics` for a caller-owned policy
+or custom transport, with the same default-off behavior as the canvas API.
+
+### Canvas action instrumentation
+
 `usageClass` distinguishes `intentional` actions from `automatic` background
 work; `excluded` actions produce no events. The wrappers preserve results and
 original exceptions, receivers and arguments. Resolved `ok: false` or
@@ -736,6 +782,7 @@ picker.open({ confirmDefault: true });
 | `triggerVariant` | `"toolbar"` (default icon pill and Change segment) or `"field"` (full-width, single-outline field with a leading icon and trailing chevron) |
 | `mount` | Optional dialog container; defaults to `document.body` |
 | `selectionMode` | `"multiple"` (checkboxes, default) or `"single"` (native radios) |
+| `commitMode` | `"explicit"` (default Apply/Cancel) or opt-in `"immediate"` (row/checkbox and keyboard changes call `onApply` without Apply; Done closes multi-selection) |
 | `singleGroup` | Defaults to `false`; when true, selected items must share a case-insensitive `tenantId` and exact `cloud` |
 | `onApply(items)` | Required callback receiving snapshots of selected item objects; may return a promise |
 | `onRefresh()` | Optional async callback enabling a Refresh subscriptions button inside the picker; update candidates with `setState` and reject on failure |
@@ -751,6 +798,15 @@ name and tooltip. The Azure-backed wrapper forwards this option too.
 This changes only the trigger, not the dialog size, selection model, search,
 keyboard interaction or confirmation behavior. The existing toolbar variant
 remains the default.
+
+Use `commitMode: "immediate"` only when the consumer supports explicit empty
+multi-selection and updates scope without a second confirmation. The Azure-backed
+wrapper forwards this option and sends an empty scope when the final subscription
+is deselected; it never substitutes a default subscription. Pending changes show
+an updating status, serialize `onApply` calls and coalesce rapid changes to the
+latest selection. A failed final change restores the last acknowledged scope and
+shows the error. Done does not undo acknowledged changes. Other consumers retain
+the default explicit commit behavior.
 
 Each subscription has required string `key`, `id`, `name`, and `tenantId` fields.
 Optional fields are `tenantName`, `cloud`, `isDefault`, `disabled`, and

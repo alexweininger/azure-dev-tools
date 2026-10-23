@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import {
   copyFileSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   realpathSync,
@@ -56,7 +57,7 @@ test("requires release tags for full verification, then checks every catalog plu
   assert.equal(results.length, fixture.plugins.length);
   assert.ok(results[0].startsWith(`azure-functions-hosted-skills@${versionOf("azure-functions-hosted-skills")} azure-functions-hosted-skills-v`));
   assert.ok(results[1].startsWith(`azure-resources-query@${versionOf("azure-resources-query")} azure-resources-query-v`));
-  assert.match(results[2], /canvas-authoring@0\.1\.1 canvas-authoring-v0-1-1-/);
+  assert.ok(results[2].startsWith(`canvas-authoring@${versionOf("canvas-authoring")} canvas-authoring-v`));
   assert.match(results[3], /azure-cost-health-check@0\.4\.5 azure-cost-health-check-v0-4-5-/);
   assert.match(results[4], /azure-sre-agent@0\.2\.7 azure-sre-agent-v0-2-7-/);
   assert.ok(results[5].startsWith(`azure-storage-canvas@${versionOf("azure-storage-canvas")} azure-storage-canvas-v`));
@@ -73,7 +74,7 @@ test("candidate validates every reviewed package and omits only missing immutabl
     }).trim().split("\n").filter(Boolean);
     assert.equal(results[index], `${name}@${version} ${tags[0] ?? "(candidate; immutable tag pending)"}`);
   }
-  assert.match(results[2], /canvas-authoring-v0-1-1-8af10f8/);
+  assert.ok(results[2].startsWith(`canvas-authoring@${versionOf("canvas-authoring")} `));
   assert.match(results[4], /azure-sre-agent@0\.2\.7 azure-sre-agent-v0-2-7-9da2e40/);
   assert.equal(results[6], "containers@0.1.1 (candidate; immutable tag pending)");
 });
@@ -173,6 +174,67 @@ test("a subsequent Cost candidate version validates without a verifier edit", ()
     git("add", "--", ".github/plugin/marketplace.json", packagePath);
     git("commit", "--quiet", "-m", "Prepare next Cost candidate");
 
+    assert.doesNotThrow(verify);
+  } finally {
+    rmSync(checkout, { recursive: true, force: true });
+  }
+});
+
+test("canvas-authoring uses versioned receipts without changing historical receipts or verifier versions", () => {
+  const checkout = mkdtempSync(join(tmpdir(), "authoring-receipt-"));
+  const clone = join(checkout, "repo");
+  const git = (...args) => execFileSync("git", ["-C", clone, ...args], {
+    encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+  const product = structuredClone(catalog.plugins.find(({ name }) => name === "canvas-authoring"));
+  const verify = (candidate = true) => {
+    try {
+      return execFileSync("node", ["--input-type=module", "-e",
+        `import { verifyPlugin } from "./${verifier}"; console.log(verifyPlugin(${JSON.stringify(product)}, { candidate: ${candidate} }));`,
+      ], { cwd: clone, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    } catch (error) {
+      throw new Error(error.stderr);
+    }
+  };
+  try {
+    execFileSync("git", ["clone", "--quiet", "--local", "--no-hardlinks", root, clone]);
+    git("config", "user.name", "Release policy test");
+    git("config", "user.email", "release-policy@example.invalid");
+    const historical = "docs/canvas-authoring/SHA256SUMS";
+    assert.equal(git("show", `HEAD:${historical}`),
+      git("show", `canvas-authoring-v0-1-1-8af10f8:${historical}`));
+    assert.doesNotThrow(verify);
+    assert.throws(() => verify(false), /expected exactly one reviewed immutable release tag/);
+
+    const receipt = `docs/canvas-authoring/${product.version}/SHA256SUMS`;
+    const original = readFileSync(join(clone, receipt), "utf8");
+    writeFileSync(join(clone, receipt), original.split("\n").filter((line) =>
+      !line.endsWith("  com.github.copilot/extensions/canvas-authoring/extension.mjs")).join("\n"));
+    git("add", "--", receipt);
+    git("commit", "--quiet", "-m", "Remove authoring runtime receipt");
+    assert.throws(verify, /checksum receipt must cover every protected plugin file exactly once/);
+    writeFileSync(join(clone, receipt), original.replace(
+      /^[0-9a-f]{64}(?=  plugin.json$)/m, "0".repeat(64)));
+    git("add", "--", receipt);
+    git("commit", "--quiet", "-m", "Corrupt authoring manifest receipt");
+    assert.throws(verify, /plugin file differs from checksum receipt: plugin.json/);
+
+    writeFileSync(join(clone, receipt), original);
+    const parts = product.version.split(".").map(Number);
+    parts[2]++;
+    product.version = parts.join(".");
+    const manifestPath = `${product.source}/plugin.json`;
+    const manifest = JSON.parse(readFileSync(join(clone, manifestPath)));
+    manifest.version = product.version;
+    const bytes = `${JSON.stringify(manifest, null, 2)}\n`;
+    writeFileSync(join(clone, manifestPath), bytes);
+    const nextReceipt = `docs/canvas-authoring/${product.version}/SHA256SUMS`;
+    mkdirSync(join(clone, `docs/canvas-authoring/${product.version}`), { recursive: true });
+    writeFileSync(join(clone, nextReceipt), original.replace(
+      /^[0-9a-f]{64}(?=  plugin.json$)/m,
+      createHash("sha256").update(bytes).digest("hex")));
+    git("add", "--", manifestPath, "docs/canvas-authoring");
+    git("commit", "--quiet", "-m", "Prepare next authoring receipt");
     assert.doesNotThrow(verify);
   } finally {
     rmSync(checkout, { recursive: true, force: true });

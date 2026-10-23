@@ -115,6 +115,34 @@ test("Cost Health 0.4.5 pins every protected Agent Plugins file without pinning 
   }
 });
 
+test("canvas-authoring candidate receipt covers every exported file and its toolkit provenance", () => {
+  const product = catalog.plugins.find(({ name }) => name === "canvas-authoring");
+  const read = (file) => readFileSync(new URL(`${product.source}/${file}`, root));
+  const manifest = JSON.parse(read("plugin.json"));
+  assert.equal(manifest.version, product.version);
+  assert.equal(manifest.name, product.name);
+  assert.ok(!Object.hasOwn(manifest, "extensions") && !Object.hasOwn(manifest, "canvases"));
+  const receipt = readFileSync(new URL(`docs/canvas-authoring/${product.version}/SHA256SUMS`, root), "utf8");
+  const entries = receipt.trimEnd().split("\n").map((line) => {
+    const match = /^([0-9a-f]{64})  (.+)$/.exec(line);
+    assert.ok(match, `malformed authoring receipt: ${line}`);
+    return { hash: match[1], file: match[2] };
+  });
+  const files = execFileSync("git", ["ls-files", "--", product.source], {
+    cwd: root, encoding: "utf8",
+  }).trimEnd().split("\n").map((file) => file.slice(product.source.length + 1)).sort();
+  assert.deepEqual(entries.map(({ file }) => file).sort(), files);
+  assert.equal(new Set(entries.map(({ file }) => file)).size, entries.length);
+  for (const { hash, file } of entries) {
+    assert.equal(createHash("sha256").update(read(file)).digest("hex"), hash, file);
+  }
+  const toolkit = "skills/create-canvas-app/references/toolkit";
+  const provenance = JSON.parse(read(`${toolkit}/provenance.json`));
+  for (const [file, hash] of Object.entries(provenance.files)) {
+    assert.equal(createHash("sha256").update(read(`${toolkit}/${file}`)).digest("hex"), hash, file);
+  }
+});
+
 test("canvas-authoring 0.1.1 receipt covers the skill-only package and its toolkit provenance", () => {
   const packagePath = "plugins/canvas-authoring/";
   const snapshot = taggedSnapshot("canvas-authoring", "0.1.1");
