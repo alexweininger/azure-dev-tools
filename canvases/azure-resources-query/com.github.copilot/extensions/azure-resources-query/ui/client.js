@@ -2,6 +2,7 @@
 import { createIcon, hydrateIcons } from "./canvas-ui/icons.mjs";
 import { createAzureSubscriptionPicker } from "./canvas-ui/azure-subscription-picker.mjs";
 import { formatAzureLocation } from "./canvas-ui/locations.mjs";
+import { observeCanvasUsage } from "./canvas-ui/telemetry.mjs";
 (() => {
   "use strict";
   hydrateIcons(document);
@@ -43,6 +44,8 @@ import { formatAzureLocation } from "./canvas-ui/locations.mjs";
   let actionCount = 0;
   let authPending = false;
   let restoringScroll = false;
+  let usageObserver = { dispose() {
+  } };
   const scopePicker = createAzureSubscriptionPicker({
     id: "scope-picker",
     trigger: $("scope-toggle"),
@@ -56,6 +59,20 @@ import { formatAzureLocation } from "./canvas-ui/locations.mjs";
     onCancel: cancelScopeRequest,
     onOpenChange: pickerOpenChanged
   });
+  void request("./api/metrics/config").then((config) => {
+    const observer = observeCanvasUsage({
+      root: document,
+      enabled: config.enabled === true,
+      controls: config.controls,
+      send: (interaction) => request("./api/metrics/interaction", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(interaction)
+      })
+    });
+    if (closed) observer.dispose();
+    else usageObserver = observer;
+  }).catch(() => console.warn("Canvas usage interaction metrics are unavailable."));
   function element(tag, className, value) {
     const node = document.createElement(tag);
     if (className) node.className = className;
@@ -916,6 +933,7 @@ ${focused}`));
   });
   window.addEventListener("pagehide", () => {
     closed = true;
+    usageObserver.dispose();
     scopePicker.destroy();
     events.close();
     themeObserver.disconnect();

@@ -145,13 +145,41 @@ test("customer guides link to full-plugin and canvas-only installation instructi
   for (const name of ["azure-functions-hosted-skills", "azure-resources-query"]) {
     const readme = readFileSync(new URL(`canvases/${name}/README.md`, root), "utf8");
     const advanced = readFileSync(new URL(`canvases/${name}/docs/advanced.md`, root), "utf8");
-    assert.match(readme, /\[installation (?:notes|alternatives)\]\(docs\/advanced\.md\)/);
+    if (name === "azure-resources-query") {
+      const plugin = manifest.plugins.find((plugin) => plugin.name === name);
+      const release = JSON.parse(readFileSync(new URL(`${plugin.source}/release.json`, root)));
+      const links = [...readme.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)].map((match) => match[1]);
+      const guideLinks = links.filter((link) => link.split("#")[0] === "docs/advanced.md");
+      assert.ok(guideLinks.length > 0, "Resources README links to its installation guide");
+      const headings = [...advanced.matchAll(/^#{1,6} (.+)$/gm)]
+        .map((match) => match[1].toLowerCase().replace(/[^\w -]/g, "").replace(/ /g, "-"));
+      for (const link of guideLinks) {
+        const fragment = link.split("#")[1];
+        if (fragment) assert.ok(headings.includes(fragment), `Missing guide section: ${fragment}`);
+      }
+      const tagVariable = advanced.match(/read -r ([A-Z_]+)/)?.[1];
+      assert.ok(tagVariable, "Resources pinning accepts a user-selected tag");
+      assert.ok(advanced.includes(`git clone --depth 1 --branch "$${tagVariable}" https://github.com/microsoft/azure-dev-tools.git`));
+      assert.ok(advanced.includes(`copilot plugin install ./azure-resources-query-plugin/${plugin.source}`));
+      const extensionPath = release.plugin.extension.entry.replace(/\/extension\.mjs$/, "");
+      for (const content of [readme, advanced]) {
+        assert.ok(content.includes("https://github.com/microsoft/azure-dev-tools/tags"));
+        assert.ok(content.includes("`azure-resources-query-v`"));
+        assert.match(content.replace(/\s+/g, " "), /published immutable tag/);
+        assert.ok(content.includes(`https://github.com/microsoft/azure-dev-tools/tree/<published-tag>/${plugin.source}/${extensionPath}`));
+        assert.match(content, /awesome-copilot/);
+      }
+    } else {
+      assert.match(readme, /\[installation (?:notes|alternatives)\]\(docs\/advanced\.md\)/);
+      assert.match(advanced, new RegExp(`exact ${manifest.plugins.find((plugin) => plugin.name === name).version.replaceAll(".", "\\.")}\\s+pin, wait`));
+      assert.match(advanced, /a planned tag is not an\s+installable ref/);
+    }
     assert.match(advanced, /git clone --depth 1 --branch/);
-    assert.match(advanced, new RegExp(`exact ${manifest.plugins.find((plugin) => plugin.name === name).version.replaceAll(".", "\\.")}\\s+pin, wait`));
-    assert.match(advanced, /a planned tag is not an\s+installable ref/);
     assert.match(advanced, new RegExp(`${name}-latest`));
     assert.match(advanced, new RegExp(`com\\.github\\.copilot/extensions/${name}`));
-    assert.match(advanced, /canvas only|only the canvas extension/i);
+    assert.match(advanced, name === "azure-resources-query"
+      ? /only the canvas\b/i
+      : /canvas only|only the canvas extension/i);
     assert.match(advanced, /microsoft\/azure-dev-tools/);
   }
 });
