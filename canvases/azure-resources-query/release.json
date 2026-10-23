@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "format": "plugin",
   "name": "azure-resources-query",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "mutableDocumentation": true,
   "publicationRepository": "microsoft/azure-dev-tools",
   "plugin": {
@@ -132,8 +132,8 @@
   },
   "build": {
     "esbuild": "0.25.12",
-    "lockSha256": "0172a79caa720e5eac81e6db0c203ab705ea3aecbe5fada39cb48f954fe78488",
-    "inputSha256": "aeee661ffdbf99450dbf1d9430d70857cb0fa4b81c1ea70b65d9f5a686a2b58b"
+    "lockSha256": "c2283e2b2ef3be4a1c113d5fa9b7af1fb07f005083ca5997c94aac8d178887a8",
+    "inputSha256": "59969f4d72e0b37cd9dde8719914bdc8a5d0834724b165036dd5f06bed081ddc"
   },
   "dependencies": [
     {
@@ -185,6 +185,11 @@
       "name": "@azure/msal-node",
       "version": "6.0.1",
       "license": "MIT"
+    },
+    {
+      "name": "@cloud-foundation/azure-resources-query-core",
+      "version": "0.1.0",
+      "license": null
     },
     {
       "name": "@microsoft/canvas-toolkit",
