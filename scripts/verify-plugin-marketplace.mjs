@@ -29,7 +29,7 @@ const packages = {
     path: "plugins/canvas-authoring",
     manifest: "plugin.json",
     skills: ["./skills/create-canvas-app/"],
-    receipt: "docs/canvas-authoring/SHA256SUMS",
+    receipt: "docs/canvas-authoring/{version}/SHA256SUMS",
   },
   "azure-cost-health-check": {
     path: "canvases/azure-cost-health-check",
@@ -444,7 +444,8 @@ export function verifyTagSource(name, version, tag) {
 export function verifyPlugin({ source, name, version }, { candidate = false } = {}) {
   const product = packages[name];
   verifyCurrentVersion(name, version);
-  verifyReceiptPath(product);
+  const receiptPath = product.receipt.replace("{version}", version);
+  verifyReceiptPath({ receipt: receiptPath });
   const path = product.path;
   if (source !== path) {
     throw new Error(`${name}: source must use its own repo-relative path`);
@@ -539,8 +540,8 @@ export function verifyPlugin({ source, name, version }, { candidate = false } = 
       }
       requireFile(revision, `${path}/${skill.slice(2)}SKILL.md`);
     }
-    const receipt = fileAt(revision, product.receipt);
-    if (releaseTag && !receipt.equals(fileAt(releaseTag, product.receipt))) {
+    const receipt = fileAt(revision, receiptPath);
+    if (releaseTag && !receipt.equals(fileAt(releaseTag, receiptPath))) {
       throw new Error("current checksum receipt differs from immutable release tag");
     }
     const entries = receipt.toString("utf8").trimEnd().split("\n").map((line) => {

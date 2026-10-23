@@ -23,7 +23,7 @@
     {
       "name": "canvas-authoring",
       "description": "Build canvas apps with the native create-canvas skill and a toolkit setup companion.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "source": "plugins/canvas-authoring"
     },
     {

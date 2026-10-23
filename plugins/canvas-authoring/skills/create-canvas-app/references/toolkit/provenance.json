@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "files": {
     "LICENSE": "d25deed12d803f6c973597348627b1939e2d19bbc28fda83c93ea0cde44702da",
-    "README.md": "f51a3c75c5a092757d99bd479e77c122e1343c14424e10cacae926e236ba45ab",
-    "auth.md": "d33a60ee92d725c10b4c3b7c958b5b58ed999eb7084da630c333145f8544ae04",
+    "README.md": "40d66d89c564be6bcb3e6741deed224417d3bc051cd3585ec665aa7a2eeae6a8",
+    "auth.md": "b22b317cd93b5fb40636fbaccba2750501faf41b54bcf9c6bb971c5355c9e23b",
     "examples/README.md": "70d8d6683e31c01ce8538d339f676901ac1332710dc19ff8afbfa443b0ae399b",
     "examples/custom-fetch-client.mjs": "18ea90a17fb7d39104f343b3a53079dfed536bdd9a6dafc71321de5158be61bb",
     "examples/resource-groups.mjs": "3d81ea6de1551da83f008251f204e06e736e9655aed450765b4f416a834d1eb8",

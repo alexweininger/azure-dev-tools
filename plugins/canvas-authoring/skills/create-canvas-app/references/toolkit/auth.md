@@ -20,8 +20,10 @@ support targets do not establish live sign-in coverage for every combination.
 ## Responsibility and prerequisites
 
 - Use Node.js **22+** and, for the default source, Azure CLI **2.61+**.
-  Azure Identity supplies the credential and bearer-token caching; the CLI owns
-  sign-in and its token store.
+  The toolkit obtains CLI tokens through the same executable and environment
+  used for profile discovery, and coalesces simultaneous requests for the same
+  audience and Azure context. Azure Identity supplies bearer-token caching;
+  the CLI owns sign-in and its token store.
 - Alternatively, supply a `TokenCredential` with matching identity metadata.
   You own its configuration and disposal; the toolkit does not mix it with
   CLI accounts or fall back to another provider.
@@ -77,8 +79,19 @@ const auth = createAzureAuthSession({
 ```
 
 These options apply to profile, login, refresh and token operations. Preserve
-proxy and certificate settings when constructing `childEnvironment`. Omit the
-options to use normal `az` discovery and the inherited environment.
+proxy and certificate settings when constructing `childEnvironment`; a supplied
+environment is forwarded exactly as given. Omit the options to use normal `az`
+discovery and the inherited environment. The inherited environment excludes
+session identifiers injected by the Copilot host (`SESSION_ID`, and
+`COPILOT_*`/`AGENCY_*` names containing `SESSION`), which Azure CLI does not use;
+forwarding them coincided with Entra rejecting CLI token requests on Windows.
+Platform session variables such as `SESSIONNAME`, `WT_SESSION`, and
+`DBUS_SESSION_BUS_ADDRESS` are kept.
+
+A canvas that must start `az` itself (for example, `az resource show`, which
+picks resource-specific API versions) must build that child's environment with
+`azureCliEnvironment(process.env)` from `@microsoft/canvas-toolkit/auth`, then
+add its own variables. Never forward `process.env` directly.
 
 ## Public session API
 
@@ -120,7 +133,7 @@ not credentials or evidence of permission to a resource:
 `source` is `"cli"` or `"credential"`; `identity` is a fingerprint string or
 `null`, not a credential. Snapshot `cloud` is a metadata object or `null`.
 `warnings` is an array of safe strings; `error` is
-`{ code, message, remedy? }` or `null`. `freshness` is
+`{ code, message, remedy?, diagnostic? }` or `null`. `freshness` is
 `{ source, refreshedAt, complete }`: `source` is `"cli-profile"`,
 `"azure-refresh"`, `"caller-provided"`, or `null`; `refreshedAt` is a timestamp
 string or `null`; `complete` is `false`. It deliberately does not certify a
@@ -387,8 +400,14 @@ previously issued access tokens remain valid according to Azure.
 
 ## Errors and security boundaries
 
-`AuthError(code, message, remedy?)` exposes safe `code`, `message`, and an optional
-string `remedy`. Render remedies as escaped text. Handle cancellation distinctly
+`AuthError(code, message, remedy?, diagnostic?)` exposes safe `code`, `message`, an
+optional string `remedy`, and an optional structured `diagnostic`. Render remedies
+as escaped text. CLI token failures (`token-failed`, `claims-required`,
+`cli-timeout`) carry `diagnostic: { operation: "get-access-token", reason:
+"exit" | "timeout", exitCode?, aadCode?, claimsChallenge }`, extracted from
+bounded CLI output that is then discarded. `aadCode` is an Entra code such as
+`AADSTS901001`. Treat every token failure as an authentication problem, never as
+evidence of a missing Azure role. Handle cancellation distinctly
 from authentication failures (`code === "cancelled"` for auth operations, or
 `name === "AbortError"` for an SDK/HTTP cancellation);
 do not turn a failed or cancelled discovery into an empty subscription list.
@@ -410,6 +429,7 @@ Examples of actionable auth codes include:
 | `auth-invalidated`, `disposed` | Retire old work/clients. Rebind to a current session, or create a new owner after disposal. |
 | `tokens-invalidated` | The acquisition was retired; an existing callback can be called again while its context is active. |
 | `unsupported-operation` | Do not use CLI server refresh with an injected source; reload caller-provided metadata instead. |
+| `token-failed`, `claims-required`, `cli-timeout` | Report an authentication failure with the safe `diagnostic`; do not suggest role assignments or launch login from a failed request. |
 | `cancelled` | End only the cancelled operation; do not report it as signed-out. |
 
 Explicit subscription/tenant/cloud binding prevents mutable-selection mistakes;

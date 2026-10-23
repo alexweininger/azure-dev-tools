@@ -74,6 +74,13 @@ verifier must check that the earlier product release is an ancestor, that
 the skill-only package tree and full checksum inventory match its tag, and
 that it has no extension or canvas. Its package root may be `plugins/<product>`
 with `plugin.json` directly in that directory rather than the canvas layout.
+Canvas Authoring's current full-file receipt lives outside the installable
+payload at `docs/canvas-authoring/<package-version>/SHA256SUMS`, selected from
+the package's marketplace version. Preserve the historical 0.1.1 receipt at
+`docs/canvas-authoring/SHA256SUMS` and verify it against its immutable tag.
+The authoring companion may include its reviewed canvas-less session telemetry
+provider under `com.github.copilot/extensions/canvas-authoring/`; this does not
+add a canvas or an `extensions` field to its root plugin manifest.
 For a subsequent combined canvas and skill-only patch release, all new
 source-qualified tags point to one later approved merge commit descending
 from the previous builder release. Verify the prior canvas and builder
