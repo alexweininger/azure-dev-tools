@@ -8,17 +8,13 @@ sources, read your Inbox, and prepare Teams updates from the same chat.
 ## Install
 
 In GitHub Copilot, open **Customize → Plugins**, add the
-**github/awesome-copilot** marketplace, and install **Azure SRE Agent**
+**microsoft/azure-dev-tools** marketplace, and install **Azure SRE Agent**
 when listed. Or use the marketplace commands:
 
 ```sh
-copilot plugin marketplace add github/awesome-copilot
-copilot plugin install azure-sre-agent@awesome-copilot
+copilot plugin marketplace add microsoft/azure-dev-tools
+copilot plugin install azure-sre-agent@azure-dev-tools
 ```
-
-Browse the [Awesome Copilot marketplace](https://github.com/github/awesome-copilot/tree/main#install-a-plugin).
-The plugin source remains in
-[microsoft/azure-dev-tools](https://github.com/microsoft/azure-dev-tools/tree/main/canvases/azure-sre-agent).
 
 Reopen Copilot and start a new chat. Requires Azure CLI signed in and access
 to the resources you use.
