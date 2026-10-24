@@ -128,11 +128,16 @@ automatic approvals or yolo mode.
 
 ## Install the full plugin
 
-When the **Azure Dev Tools** marketplace lists **Azure SRE Agent** in GitHub
+When the **Awesome Copilot** marketplace lists **Azure SRE Agent** in GitHub
 Copilot, go to **Customize → Plugins → marketplace gear**, add
-`microsoft/azure-dev-tools` (marketplace ID `azure-dev-tools`), and install
+`github/awesome-copilot` (marketplace ID `awesome-copilot`), and install
 **Azure SRE Agent**. The full plugin includes both the canvas and its
 `azure-sre-agent-canvas` routing skill.
+
+```sh
+copilot plugin marketplace add github/awesome-copilot
+copilot plugin install azure-sre-agent@awesome-copilot
+```
 
 Fully quit and reopen GitHub Copilot, start a fresh chat, and try this exact
 prompt:
