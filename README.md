@@ -81,6 +81,26 @@ native listing is live.
 Each product README lists its prerequisites, safe prompts, first-run workflow,
 version-pinned installation options, and product-specific safety behavior.
 
+## Disable usage telemetry
+
+For plugins whose **Usage data** notice links here, disable usage telemetry
+with these steps. Update older plugin versions first.
+
+1. Create `~/.copilot/canvases/telemetry.json` (Windows:
+   `%USERPROFILE%\.copilot\canvases\telemetry.json`), including any missing
+   folders. If `COPILOT_HOME` is configured, use
+   `<COPILOT_HOME>/canvases/telemetry.json` instead.
+2. Save:
+
+   ```json
+   {
+     "enabled": false
+   }
+   ```
+
+3. Fully quit and reopen GitHub Copilot or Claude Desktop, whichever runs
+   the plugin, then start a fresh session.
+
 ## Get involved
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) to contribute. For help or feedback, see
