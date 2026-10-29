@@ -16,8 +16,8 @@
     },
     {
       "name": "azure-resources-query",
-      "description": "Explore Azure resources with read-only queries, a canvas, and a skill.",
-      "version": "0.1.6",
+      "description": "Read-only Azure Resource Graph queries with explicit scope and saved views.",
+      "version": "0.1.7",
       "source": "canvases/azure-resources-query"
     },
     {
