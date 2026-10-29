@@ -279,7 +279,7 @@ test("rejects remote, moving, and cross-product sources", () => {
     };
   })), /own repo-relative path/);
   assert.throws(() => verifyPlugin({
-    name: "canvas-authoring", version: "0.1.1", source: "canvases/canvas-authoring",
+    name: "canvas-authoring", version: versionOf("canvas-authoring"), source: "canvases/canvas-authoring",
   }), /own repo-relative path/);
 });
 

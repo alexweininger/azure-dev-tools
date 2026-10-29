@@ -18,12 +18,16 @@ const catalog = JSON.parse(readFileSync(
   new URL("../.github/plugin/marketplace.json", import.meta.url)));
 const root = fileURLToPath(new URL("../", import.meta.url));
 
-test("Storage accepts reviewed semantic versions without a fixed version gate", () => {
-  for (const version of ["0.1.0", "0.1.1", "0.2.0"]) {
+test("Storage enforces the latest immutable version without pinning future versions", () => {
+  for (const version of ["0.3.2", "0.3.3", "0.3.4"]) {
     assert.doesNotThrow(() => verifyCurrentVersion(name, version));
     assert.doesNotThrow(() => verifyTagSource(
       name, version, `${name}-v${version.replaceAll(".", "-")}-1234567`,
     ));
+  }
+  for (const version of ["0.1.0", "0.1.1", "0.2.0", "0.3.1"]) {
+    assert.throws(() => verifyCurrentVersion(name, version),
+      /must not precede the latest immutable release/);
   }
   for (const version of ["0.1", "0.1.1-preview.1", "latest"]) {
     assert.throws(() => verifyCurrentVersion(name, version), /semantic version/);
@@ -43,7 +47,7 @@ test("Storage rejects obsolete identities and noncanonical package sources", () 
     { source: "github", repo: "microsoft/azure-dev-tools", path: source, ref: "main" },
   ]) {
     assert.throws(() => verifyPlugin({
-      name, version: "0.1.1", source: wrongSource,
+      name, version: "0.3.4", source: wrongSource,
     }, { candidate: true }), /own repo-relative path/);
   }
 });
@@ -51,13 +55,13 @@ test("Storage rejects obsolete identities and noncanonical package sources", () 
 test("Storage requires an ASCII source-qualified immutable version tag", () => {
   for (const tag of [
     `${name}-latest`,
-    `${name}-v0.1.1-1234567`,
+    `${name}-v0.3.4-1234567`,
     `${name}-v0-1-0-1234567`,
-    `${name}-v0-1-1-main`,
-    `${name}-v0-1-1-123456`,
-    `${name}-v0-1-1-1234567\u2014`,
+    `${name}-v0-3-4-main`,
+    `${name}-v0-3-4-123456`,
+    `${name}-v0-3-4-1234567\u2014`,
   ]) {
-    assert.throws(() => verifyTagSource(name, "0.1.1", tag),
+    assert.throws(() => verifyTagSource(name, "0.3.4", tag),
       /does not identify a source commit/);
   }
 });

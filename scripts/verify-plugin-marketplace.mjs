@@ -386,12 +386,14 @@ function compareVersions(left, right) {
 }
 
 function latestHistoricalVersion(name) {
-  return Object.keys(previousTags).reduce((latest, tag) => {
+  const prefix = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return git("tag", "--list", `${name}-v*`).split("\n").filter(Boolean).reduce((latest, tag) => {
     const match = new RegExp(
-      `^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}-v(\\d+)-(\\d+)-(\\d+)-[0-9a-f]+$`,
+      `^${prefix}-v(\\d+)-(\\d+)-(\\d+)-[0-9a-f]{7,40}$`,
     ).exec(tag);
     if (!match) return latest;
     const version = match.slice(1).map(Number);
+    if (!version.every(Number.isSafeInteger)) return latest;
     return !latest || compareVersions(version, latest) > 0 ? version : latest;
   }, null);
 }
