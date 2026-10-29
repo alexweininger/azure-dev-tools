@@ -45,6 +45,16 @@ Copilot can operate the same controls you see. Ask it to open an account, open a
 
 Live mode uses the Azure CLI and your existing `az login`. The canvas reads storage with your own sign in and never starts a sign in for you. Every mutating action runs only from an explicit action on the canvas.
 
+## Usage data
+
+Usage telemetry is enabled by default to help improve this plugin. It sends
+basic usage data and, when available, your numeric GitHub user ID to the
+[usage metrics service](https://canvas-metrics-pilot-0b8944-add3hsghhddcbxe9.b01.azurefd.net/api/events).
+Prompts, tool inputs/outputs and credentials are excluded.
+
+You can [disable usage telemetry](https://github.com/microsoft/azure-dev-tools#disable-usage-telemetry).
+Copilot's own telemetry is separate.
+
 ## Troubleshooting
 
 - **Canvas unavailable:** check that the plugin is enabled, reload extensions,

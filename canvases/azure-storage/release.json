@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "format": "plugin",
   "name": "azure-storage",
-  "version": "0.3.2",
+  "version": "0.3.4",
   "mutableDocumentation": true,
   "publicationRepository": "microsoft/azure-dev-tools",
   "plugin": {
@@ -49,8 +49,8 @@
   },
   "build": {
     "esbuild": "0.25.12",
-    "lockSha256": "2e1e8312ac618fc822ed8ae6f6c836b0a8939417db3b291459d9bacb9f3abcf7",
-    "inputSha256": "96237f35544ee31a4069222b7c14e09354250668be0bcd9999e96cb63f558f5b"
+    "lockSha256": "40a20d759b2d0b2d582c61b31983df855ebfde026da1c1baaaedbbb24fca246c",
+    "inputSha256": "a5478c37fd6ac4b33329e380d7cb59809ee4427686a203eb4b69013c7365599e"
   },
   "dependencies": [
     {
@@ -154,9 +154,24 @@
       "license": "MIT"
     },
     {
+      "name": "@cloud-foundation/azure-storage-core",
+      "version": "0.1.0",
+      "license": null
+    },
+    {
       "name": "@cloud-foundation/studio-runtime",
       "version": "0.1.0",
       "license": null
+    },
+    {
+      "name": "@microsoft/canvas-toolkit",
+      "version": "0.1.0",
+      "license": "MIT"
+    },
+    {
+      "name": "@nodable/entities",
+      "version": "3.1.0",
+      "license": "MIT"
     },
     {
       "name": "@typespec/ts-http-runtime",
@@ -166,6 +181,11 @@
     {
       "name": "agent-base",
       "version": "7.1.4",
+      "license": "MIT"
+    },
+    {
+      "name": "anynum",
+      "version": "1.0.1",
       "license": "MIT"
     },
     {
@@ -204,8 +224,13 @@
       "license": "Apache-2.0"
     },
     {
+      "name": "fast-xml-builder",
+      "version": "1.3.1",
+      "license": "MIT"
+    },
+    {
       "name": "fast-xml-parser",
-      "version": "4.5.3",
+      "version": "5.11.2",
       "license": "MIT"
     },
     {
@@ -231,6 +256,11 @@
     {
       "name": "is-inside-container",
       "version": "1.0.0",
+      "license": "MIT"
+    },
+    {
+      "name": "is-unsafe",
+      "version": "2.0.2",
       "license": "MIT"
     },
     {
@@ -299,6 +329,11 @@
       "license": "MIT"
     },
     {
+      "name": "path-expression-matcher",
+      "version": "1.6.2",
+      "license": "MIT"
+    },
+    {
       "name": "run-applescript",
       "version": "7.1.0",
       "license": "MIT"
@@ -315,7 +350,7 @@
     },
     {
       "name": "strnum",
-      "version": "1.1.2",
+      "version": "2.5.1",
       "license": "MIT"
     },
     {
@@ -326,6 +361,11 @@
     {
       "name": "wsl-utils",
       "version": "0.1.0",
+      "license": "MIT"
+    },
+    {
+      "name": "xml-naming",
+      "version": "0.3.0",
       "license": "MIT"
     }
   ],
