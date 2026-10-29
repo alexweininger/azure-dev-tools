@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,18 +12,22 @@ import {
   verifyTagSource,
 } from "../scripts/verify-plugin-marketplace.mjs";
 
-const name = "azure-storage-canvas";
+const name = "azure-storage";
 const source = `canvases/${name}`;
 const catalog = JSON.parse(readFileSync(
   new URL("../.github/plugin/marketplace.json", import.meta.url)));
 const root = fileURLToPath(new URL("../", import.meta.url));
 
-test("Storage accepts reviewed semantic versions without a fixed version gate", () => {
-  for (const version of ["0.1.0", "0.1.1", "0.2.0"]) {
+test("Storage enforces the latest immutable version without pinning future versions", () => {
+  for (const version of ["0.3.2", "0.3.3", "0.3.4"]) {
     assert.doesNotThrow(() => verifyCurrentVersion(name, version));
     assert.doesNotThrow(() => verifyTagSource(
       name, version, `${name}-v${version.replaceAll(".", "-")}-1234567`,
     ));
+  }
+  for (const version of ["0.1.0", "0.1.1", "0.2.0", "0.3.1"]) {
+    assert.throws(() => verifyCurrentVersion(name, version),
+      /must not precede the latest immutable release/);
   }
   for (const version of ["0.1", "0.1.1-preview.1", "latest"]) {
     assert.throws(() => verifyCurrentVersion(name, version), /semantic version/);
@@ -31,19 +35,19 @@ test("Storage accepts reviewed semantic versions without a fixed version gate", 
 });
 
 test("Storage rejects obsolete identities and noncanonical package sources", () => {
-  for (const obsolete of ["azure-storage", "azure-storage-explorer"]) {
+  for (const obsolete of ["azure-storage-canvas", "azure-storage-explorer"]) {
     assert.throws(() => verifyCurrentVersion(obsolete, "0.1.1"),
       /expected a reviewed product/);
   }
   for (const wrongSource of [
-    "plugins/azure-storage-canvas",
-    "canvases/azure-storage-canvas/src",
+    `plugins/${name}`,
+    `${source}/src`,
     `${source}/com.github.copilot/extensions/${name}`,
     "canvases/azure-resources-query",
     { source: "github", repo: "microsoft/azure-dev-tools", path: source, ref: "main" },
   ]) {
     assert.throws(() => verifyPlugin({
-      name, version: "0.1.1", source: wrongSource,
+      name, version: "0.3.4", source: wrongSource,
     }, { candidate: true }), /own repo-relative path/);
   }
 });
@@ -51,13 +55,13 @@ test("Storage rejects obsolete identities and noncanonical package sources", () 
 test("Storage requires an ASCII source-qualified immutable version tag", () => {
   for (const tag of [
     `${name}-latest`,
-    `${name}-v0.1.1-1234567`,
+    `${name}-v0.3.4-1234567`,
     `${name}-v0-1-0-1234567`,
-    `${name}-v0-1-1-main`,
-    `${name}-v0-1-1-123456`,
-    `${name}-v0-1-1-1234567\u2014`,
+    `${name}-v0-3-4-main`,
+    `${name}-v0-3-4-123456`,
+    `${name}-v0-3-4-1234567\u2014`,
   ]) {
-    assert.throws(() => verifyTagSource(name, "0.1.1", tag),
+    assert.throws(() => verifyTagSource(name, "0.3.4", tag),
       /does not identify a source commit/);
   }
 });
@@ -81,7 +85,7 @@ test("the Storage candidate verifies its canonical plugin and protected receipt"
   const plugin = catalog.plugins.find((entry) => entry.name === name);
   assert.ok(plugin, "Storage must have a production marketplace entry");
   assert.match(verifyPlugin(plugin, { candidate: true }),
-    /^azure-storage-canvas@\d+\.\d+\.\d+ /);
+    /^azure-storage@\d+\.\d+\.\d+ /);
 });
 
 test("Storage rejects changes to its protected runtime, launcher, notices, icon and receipt", () => {
@@ -101,6 +105,8 @@ test("Storage rejects changes to its protected runtime, launcher, notices, icon 
   };
   try {
     execFileSync("git", ["clone", "--quiet", "--local", "--no-hardlinks", root, clone]);
+    copyFileSync(join(root, "scripts/verify-plugin-marketplace.mjs"),
+      join(clone, "scripts/verify-plugin-marketplace.mjs"));
     git("config", "user.name", "Storage release policy test");
     git("config", "user.email", "release-policy@example.invalid");
     assert.doesNotThrow(verify);

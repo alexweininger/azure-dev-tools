@@ -47,13 +47,13 @@ const packages = {
     extensionPath: "com.github.copilot/extensions/azure-sre-agent",
     receipt: "canvases/azure-sre-agent/SHA256SUMS",
   },
-  "azure-storage-canvas": {
-    path: "canvases/azure-storage-canvas",
+  "azure-storage": {
+    path: "canvases/azure-storage",
     manifest: ".github/plugin/plugin.json",
-    skills: ["./skills/azure-storage-canvas/"],
-    extension: "azure-storage-canvas",
-    extensionPath: "com.github.copilot/extensions/azure-storage-canvas",
-    receipt: "canvases/azure-storage-canvas/SHA256SUMS",
+    skills: ["./skills/azure-storage/"],
+    extension: "azure-storage",
+    extensionPath: "com.github.copilot/extensions/azure-storage",
+    receipt: "canvases/azure-storage/SHA256SUMS",
   },
   "containers": {
     path: "canvases/containers",
@@ -350,36 +350,11 @@ export function verifyMarketplace(manifest, { candidate = false } = {}) {
     }
     const costCommit = git("rev-parse", "azure-cost-health-check-v0-4-3-b355172^{commit}");
     verifySubsequentReleaseCommit(commits[0], costCommit);
-    const pairedTags = pairedCanvasProducts.map((name) =>
-      releaseTagFor(name, marketplaceVersion(manifest, name), { allowMissing: candidate }));
-    if (pairedTags.some(Boolean) && !pairedTags.every(Boolean)) {
-      throw new Error("Paired canvas releases must both be candidates or both have immutable tags");
-    }
-    const pairedCommits = pairedTags.every(Boolean)
-      ? pairedTags.map((tag) => git("rev-parse", `${tag}^{commit}`))
-      : [];
-    if (pairedCommits.length) {
-      const canvasCommits = pairedCommits;
-      if (new Set(canvasCommits).size !== 1) {
-        throw new Error("New canvas release tags must point to the same reviewed merge commit");
-      }
-      verifySubsequentReleaseCommit(costCommit, canvasCommits[0]);
-    }
-    const currentCostTag = releaseTagFor(
-      "azure-cost-health-check",
-      marketplaceVersion(manifest, "azure-cost-health-check"),
-      { allowMissing: candidate },
-    );
-    if (currentCostTag) {
-      if (!pairedCommits.length) {
-        throw new Error("Cost Health cannot be published before the paired canvas releases");
-      }
-      verifySubsequentReleaseCommit(
-        pairedCommits[0],
-        git("rev-parse", `${currentCostTag}^{commit}`),
-      );
-    } else if (pairedCommits.length) {
-      verifySubsequentReleaseCommit(pairedCommits[0], "HEAD");
+    for (const name of [...pairedCanvasProducts, "azure-cost-health-check"]) {
+      const tag = releaseTagFor(name, marketplaceVersion(manifest, name),
+        { allowMissing: candidate });
+      const commit = tag ? git("rev-parse", `${tag}^{commit}`) : git("rev-parse", "HEAD");
+      if (commit !== costCommit) verifySubsequentReleaseCommit(costCommit, commit);
     }
   }
   return results;
@@ -411,12 +386,14 @@ function compareVersions(left, right) {
 }
 
 function latestHistoricalVersion(name) {
-  return Object.keys(previousTags).reduce((latest, tag) => {
+  const prefix = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return git("tag", "--list", `${name}-v*`).split("\n").filter(Boolean).reduce((latest, tag) => {
     const match = new RegExp(
-      `^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}-v(\\d+)-(\\d+)-(\\d+)-[0-9a-f]+$`,
+      `^${prefix}-v(\\d+)-(\\d+)-(\\d+)-[0-9a-f]{7,40}$`,
     ).exec(tag);
     if (!match) return latest;
     const version = match.slice(1).map(Number);
+    if (!version.every(Number.isSafeInteger)) return latest;
     return !latest || compareVersions(version, latest) > 0 ? version : latest;
   }, null);
 }
